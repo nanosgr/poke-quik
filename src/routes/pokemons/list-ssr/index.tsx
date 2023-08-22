@@ -1,50 +1,76 @@
-import { component$} from '@builder.io/qwik';
-import { type DocumentHead, Link, routeLoader$ } from '@builder.io/qwik-city';
-import type { BasicPokemonInfo, PokemonListResponse } from '~/interfaces';
+import { component$, useComputed$ } from '@builder.io/qwik';
+import { type DocumentHead, Link, routeLoader$, useLocation } from '@builder.io/qwik-city';
+import { PokemonsImage } from '~/components/pokemons/pokemons-image';
+import { getSmallPokemons } from '~/helpers/get-small-pokemons';
+import type { SmallPokemon } from '~/interfaces';
 
-export const usePokemonList = routeLoader$<BasicPokemonInfo[]>( async() =>{
-  // Acá es donde podemos utilizar Axios
-  const resp = await fetch(`https://pokeapi.co/api/v2/pokemon?limit=10&offset=0`);
-  const data = await resp.json() as PokemonListResponse;
+export const usePokemonList = routeLoader$<SmallPokemon[]>(async({ query, redirect, pathname }) => {
 
-  return data.results;
+  const offset = Number( query.get('offset') || '0' );
+  if ( isNaN(offset) ) redirect(301, pathname );
+  if ( offset < 0 ) redirect(301, pathname );
+
+  return getSmallPokemons(offset);
+
+  // const resp = await fetch(`https://pokeapi.co/api/v2/pokemon?limit=10&offset=${ offset }`);
+  // const data = await resp.json() as PokemonListResponse;
+
+  // return data.results;
+
 });
+
 
 export default component$(() => {
 
-    const pokemons = usePokemonList();
-    return(
-      <>
-        <div class="flex flex-col">
-          <span class="my-5 text-5xl">Status</span>
-          <span>Página actual: xxxxx</span>
-          <span>Está cargando página: xxxx</span>
-        </div>
+  const pokemons = usePokemonList();
+  const location = useLocation()
+  
+  const currentOffset = useComputed$<number>(() => {
+    // const offsetString = location.url.searchParams.get('offset');
+    const offsetString = new URLSearchParams( location.url.search );
+    return Number(offsetString.get('offset') || 0 );
+  })
 
-        <div class="mt-10">
-          <Link class="btn btn-primary mr-2">Siguientes</Link>
-          <Link class="btn btn-primary mr-2">Anteriores</Link>
-        </div>
 
-        <div class="grid grid-cols-5 mt-5">
-          {
-            pokemons.value.map( ({ name }) => (
-              <div key={name} class="m-5 flex flex-col justify-center items-center">
-                <span class="capitalize">{name}</span>
-              </div>
-            ))
-          }
-        </div>
-      </>
-    );
+  return (
+    <>
+      <div class="flex flex-col">
+        <span class="my-5 text-5xl">Status</span>
+        <span>Offset: { currentOffset }</span>
+        <span>Está cargando página: { location.isNavigating ? 'Si': 'No' } </span>
+      </div>
+
+      <div class="mt-10">
+        <Link href={ `/pokemons/list-ssr/?offset=${ currentOffset.value - 10 }` }
+           class="btn btn-primary mr-2">
+          Anteriores
+        </Link>
+
+        <Link href={ `/pokemons/list-ssr/?offset=${ currentOffset.value + 10 }` }
+          class="btn btn-primary mr-2">
+          Siguientes
+        </Link>
+      </div>
+
+      <div class="grid grid-cols-5 mt-5">
+        {
+          pokemons.value.map(({ name, id }) => (
+            <div key={ name } class="m-5 flex flex-col justify-center items-center">
+              <PokemonsImage id={id} />
+              <span class="capitalize">{ name }</span>
+            </div>
+          ))
+        }
+        
+      </div>
+
+
+    
+    </>
+  )
 });
 
+
 export const head: DocumentHead = {
-    title: "PokeQwik - Server Side Rendering",
-    meta: [
-      {
-        name: "description",
-        content: "Server Side Rendering",
-      },
-    ],
-  };
+  title: 'List SSR',
+};
